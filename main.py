@@ -32,19 +32,22 @@ from huggingface_hub import login
 login()
 
 llm = HuggingFaceEndpoint(
-    repo_id="",
+    repo_id="Qwen/Qwen2.5-7B-Instruct",
     task="text-generation",
     max_new_tokens=256,
     temperature=0.7,
-
+    repetition_penalty=1.3,
+    do_sample=True
 )
 
 ibm_llm=ChatHuggingFace(llm=llm)
 
 goog_llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model="gemini-3.1-flash-lite",
     temperature=0,
-    streaming=True
+    streaming=True,
+    repetition_penalty=1.3,
+    do_sample=True
 )
 
 # ====================== DEFINIR LES TOOLS ==========================
