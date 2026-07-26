@@ -6,9 +6,10 @@ from langgraph.graph import StateGraph, START, END
 
 from langchain_core.tools import tool
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage, BaseMessage
-from langchain.chat_models import init_chat_model
+# from langchain.chat_models import init_chat_model
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
 import os
 import httpx
 import asyncio
@@ -30,15 +31,15 @@ from huggingface_hub import login
 
 login()
 
-# LLM IBM Granite avec paramètres anti-répétition
-ibm_llm = init_chat_model(
-    model="ibm-granite/granite-3.1-1b-a400m-instruct",
-    model_provider="huggingface",
-    temperature=0.7,
+llm = HuggingFaceEndpoint(
+    repo_id="",
+    task="text-generation",
     max_new_tokens=256,
-    repetition_penalty=1.3,   # pénalise la répétition de tokens (fix boucle infinie)
-    do_sample=True,           # échantillonnage au lieu de greedy pur
+    temperature=0.7,
+
 )
+
+ibm_llm=ChatHuggingFace(llm=llm)
 
 goog_llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
@@ -561,7 +562,7 @@ graph.add_conditional_edges(
 
 def route_from_research(state: State) -> str:
     if tools_condition(state) == "tools":
-        return "tools"
+        return "research_tools"
     return "writer" if state["content_type"] == "story" else "image"
 
 
