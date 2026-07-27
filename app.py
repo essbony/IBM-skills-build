@@ -45,7 +45,7 @@ if user_input:
     container = st.empty()
     full_response = ""
     
-    # Configuration du graphe
+# ==== Configuration du graphe
     config = {"configurable": {"thread_id": st.session_state.thread_id}}
     input_data = {
         "messages": [HumanMessage(content=user_input if user_input != "AUDIO_FILE" else "")],
