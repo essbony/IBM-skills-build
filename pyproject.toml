@@ -25,4 +25,5 @@ dependencies = [
     "openai>=2.45.0",
     "pydantic>=2.13.4",
     "audio-recorder-streamlit>=0.0.10",
+    "chainlit>=2.11.1",
 ]
