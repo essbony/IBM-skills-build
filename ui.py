@@ -13,9 +13,7 @@ import streamlit as st
 
 from agent import check_env, NODE_LABELS, stream_pipeline
 
-# ----------------------------------------------------------------------------
-# CONFIG PAGE
-# ----------------------------------------------------------------------------
+# ============================== CONFIG PAGE =================================
 
 st.set_page_config(
     page_title="NARRATOR AI",
@@ -24,9 +22,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ----------------------------------------------------------------------------
-# THEME / CSS
-# ----------------------------------------------------------------------------
+# ================================== THEME / CSS ====================================
 
 PRIMARY = "#4F46E5"  # indigo
 PRIMARY_DARK = "#3730A3"
@@ -119,9 +115,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ----------------------------------------------------------------------------
-# SESSION STATE
-# ----------------------------------------------------------------------------
+# ================================== SESSION STATE =====================================
 
 if "thread_id" not in st.session_state:
     st.session_state.thread_id = str(uuid.uuid4())
@@ -132,9 +126,7 @@ if "history" not in st.session_state:
 if "running" not in st.session_state:
     st.session_state.running = False
 
-# ----------------------------------------------------------------------------
-# SIDEBAR
-# ----------------------------------------------------------------------------
+# ================================== SIDEBAR =====================================
 
 with st.sidebar:
     st.markdown(
@@ -142,17 +134,17 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     st.markdown(
-        '<p class="studio-subtitle">Agent multimodal · LangGraph</p>',
+        '<p class="studio-subtitle">Multi-modal agent</p>',
         unsafe_allow_html=True,
     )
     st.markdown("---")
 
-    st.markdown("**Statut des clés API**")
+    st.markdown("**STATUS OF API KEYS**")
     env = check_env()
     labels = {
         "GOOGLE_API_KEY": "Gemini (routage / image)",
-        "HF_API_TOKEN": "HuggingFace (Qwen)",
-        "TAVILY_API_KEY": "Tavily (recherche web)",
+        "OPENAI_API_KEY": "OpenAI (ChatGPT)",
+        "TAVILY_API_KEY": "Tavily (web search)",
         "OPENAI_API_KEY": "OpenAI (transcription)",
     }
     for key, label in labels.items():
@@ -166,41 +158,37 @@ with st.sidebar:
 
     st.markdown("---")
     st.caption(f"Session : `{st.session_state.thread_id[:8]}`")
-    if st.button("🔄 Nouvelle conversation", use_container_width=True):
+    if st.button("🔄 New conversation", use_container_width=True):
         st.session_state.thread_id = str(uuid.uuid4())
         st.session_state.history = []
         st.rerun()
 
     st.markdown("---")
     st.caption(
-        "Pipeline : Transcription → Routage → Recherche (optionnelle) "
-        "→ Rédaction / Image → Publication"
+        "Pipeline : Transcription → Routing → Research (optional) "
+        "→ Redaction / Image → Publication"
     )
 
-# ----------------------------------------------------------------------------
-# HEADER
-# ----------------------------------------------------------------------------
+
+# ================================== HEADER =====================================
 
 st.markdown(
     """
     <h2 style="margin-bottom:0;">NARRATOR AI AGENT</h2>
     <p style="color:#94A3B8; margin-top:4px;">
-        Décris ce que tu veux produire — une histoire ou une image — par texte ou à l'oral.
-        L'agent choisit lui-même s'il doit faire une recherche web avant de créer, puis publie le résultat.
+      "Describe what you want to create—a story or an image—using text or voice. The agent will automatically determine if web research is required before generating the content, then publish the final result.".
     </p>
     """,
     unsafe_allow_html=True,
 )
 
-# ----------------------------------------------------------------------------
-# INPUT PANEL
-# ----------------------------------------------------------------------------
+# ============================= INPUT PANEL =====================
 
 col_in, col_out = st.columns([1, 1.3], gap="large")
 
 with col_in:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("#### 📝 Entrée")
+    st.markdown("#### 📝 ENTER")
 
     tab_text, tab_audio = st.tabs(["📝Text", "🎙️ Mike"])
 
@@ -210,8 +198,8 @@ with col_in:
     with tab_text:
         user_text = st.text_area(
             "Your request",
-            placeholder="Ex : Écris une histoire de science-fiction sur une IA qui explore Mars, "
-            "en te basant sur les dernières missions martiennes réelles.",
+            placeholder="Ex : Write a sci-fi story about an AI exploring Mars,"
+            "based on real-life recent Martian missions.",
             height=140,
             label_visibility="collapsed",
         )
@@ -224,13 +212,13 @@ with col_in:
     col_a, col_b = st.columns([1, 1])
     with col_a:
         launch = st.button(
-            "🚀 Générer",
+            "🚀 Go",
             use_container_width=True,
             disabled=st.session_state.running,
         )
     with col_b:
         st.markdown('<div class="secondary-btn">', unsafe_allow_html=True)
-        clear = st.button("🗑️ Effacer l'historique", use_container_width=True)
+        clear = st.button("🗑️ Clear history", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -239,18 +227,16 @@ if clear:
     st.session_state.history = []
     st.rerun()
 
-# ----------------------------------------------------------------------------
-# EXECUTION
-# ----------------------------------------------------------------------------
+# =========================== EXECUTION ==============================
 
 with col_out:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("#### ⚙️ Suivi du pipeline")
+    st.markdown("#### ⚙️ Status")
     status_container = st.container()
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("#### 📦 Résultat")
+    st.markdown("#### 📦 Result")
     result_container = st.container()
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -277,8 +263,12 @@ async def run_pipeline_ui(user_text, audio_path):
         step_placeholder = st.empty()
         log_lines = []
 
-        # --- SPINNER DE TRAITEMENT DU PIPELINE ---
-        with st.spinner("Exécution des agents en cours..."):
+        spinner_message = (
+            "🎙️ Audio Transcription  in progress..."
+            if audio_path
+            else "✍️ Processing of your request and creation in progress..."
+        )
+        with st.spinner(spinner_message):
             async for event in stream_pipeline(
                 user_text, audio_path, st.session_state.thread_id
             ):
@@ -301,7 +291,7 @@ async def run_pipeline_ui(user_text, audio_path):
                     break
 
                 icon, label = NODE_LABELS.get(node, ("⚙️", node))
-                log_lines.append(f"{icon} **{label}** — terminé")
+                log_lines.append(f"{icon} **{label}** — finished")
                 step_placeholder.markdown("\n\n".join(log_lines))
 
     with result_container:
@@ -315,25 +305,22 @@ async def run_pipeline_ui(user_text, audio_path):
             )
             st.write("")
 
-        # Rendu du Texte / Histoire
         if story_text:
             st.markdown(story_text)
 
-        # Rendu Visuel de l'Image générée
         if clean_image_url:
             st.image(
                 clean_image_url,
-                caption="🎨 Image générée",
+                caption="🎨 Generated Image",
                 use_container_width=True,
             )
 
         if publish_result:
             st.markdown(
-                '<span class="badge badge-ok">✓ Publié avec succès</span>',
+                '<span class="badge badge-ok">✓ Successfully published</span>',
                 unsafe_allow_html=True,
             )
 
-    # Sauvegarde dans l'historique
     st.session_state.history.append(
         {
             "role": "user",
@@ -354,13 +341,12 @@ async def run_pipeline_ui(user_text, audio_path):
 if launch:
     if not user_text and audio_value is None:
         st.warning(
-            "Ajoute un texte ou un enregistrement audio avant de lancer la génération."
+            "Add a text or audio recording before launching the generation."
         )
     else:
         st.session_state.running = True
         
-        # --- SPINNER D'INITIALISATION DE LA DEMANDE ---
-        with st.spinner("Initialisation du pipeline et analyse des entrées..."):
+        with st.spinner("Pipeline Initialization and input parsing..."):
             path = (
                 save_audio_to_tempfile(audio_value)
                 if audio_value is not None
@@ -377,9 +363,8 @@ if launch:
             finally:
                 st.session_state.running = False
 
-# ----------------------------------------------------------------------------
-# HISTORIQUE
-# ----------------------------------------------------------------------------
+
+# ========================= HISTORIQUE ====================
 
 if st.session_state.history:
     st.markdown("---")
@@ -391,7 +376,7 @@ if st.session_state.history:
             if msg.get("image"):
                 st.image(
                     msg["image"],
-                    caption="🎨 Image générée",
+                    caption="🎨 Generated image",
                     use_container_width=True,
                 )
             st.caption(msg["ts"])
