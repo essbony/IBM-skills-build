@@ -1,44 +1,35 @@
-# ===================== agent_pipeline.py =====================
-# Backend LangGraph : routage multimodal (histoire / image),
-# recherche web, rédaction, génération d'image, publication.
-# Import-safe : aucun login / appel réseau au chargement du module.
-# ================================================================
+# ===================== IMPORTS =====================
 
 from __future__ import annotations
-
-from typing import Annotated, Any, AsyncGenerator, Literal, Optional, Sequence
 from typing_extensions import TypedDict
+from typing import Annotated, Any, AsyncGenerator, Literal, Optional, Sequence
 
-import operator
 import os
-import urllib.parse
 import uuid
+import operator
 import logging
+import urllib.parse
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
+from langchain_core.messages import (AIMessage,BaseMessage,HumanMessage,SystemMessage,ToolMessage)
 from langchain_core.tools import tool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import InMemorySaver
 
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
+
+
+
+# ============================= CONFIGS ============================
+
 load_dotenv()
-
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Env
-# ---------------------------------------------------------------------------
-HF_API_TOKEN = os.getenv("HF_API_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+HF_API_TOKEN = os.getenv("HF_API_TOKEN") 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -53,10 +44,8 @@ def check_env() -> dict[str, bool]:
         "OPENAI_API_KEY": bool(OPENAI_API_KEY),
     }
 
+# ================== INITIALISATION LLMs ==============
 
-# ---------------------------------------------------------------------------
-# Clients / LLMs (lazy)
-# ---------------------------------------------------------------------------
 _ibm_llm = None
 _goog_llm = None
 _llm_search = None
@@ -92,7 +81,7 @@ def get_llms() -> None:
     if _ibm_llm is not None:
         return
 
-    # --- HuggingFace (écriture d'histoires + recherche) ---
+
     if HF_API_TOKEN:
         try:
             from huggingface_hub import login
@@ -100,7 +89,7 @@ def get_llms() -> None:
         except Exception as e:
             logger.warning("HF login skipped: %s", e)
 
-    from langchain_huggingface import HuggingFaceEndpoint, ChatHuggingFace
+   
 
     hf_endpoint = HuggingFaceEndpoint(
         repo_id="Qwen/Qwen2.5-7B-Instruct",
@@ -113,11 +102,10 @@ def get_llms() -> None:
     )
     _ibm_llm = ChatHuggingFace(llm=hf_endpoint)
 
-    # --- Gemini (routeur + image + publish) ---
-    from langchain_google_genai import ChatGoogleGenerativeAI
+
 
     _goog_llm = ChatGoogleGenerativeAI(
-        model="gemini-3.1-flash-lite",          # modèle stable & largement dispo
+        model="gemini-3.1-flash-lite",
         temperature=0.2,
         google_api_key=GOOGLE_API_KEY,
     )
@@ -129,10 +117,8 @@ def get_llms() -> None:
     _llm_publish = _goog_llm.bind_tools([publish_content])
     _router_llm = _goog_llm.with_structured_output(Route)
 
+# ===================== LES TOOLS ====================
 
-# ---------------------------------------------------------------------------
-# Tools
-# ---------------------------------------------------------------------------
 @tool
 async def research_web(query: str) -> str:
     """Recherche des informations fiables sur le web (Tavily).
@@ -207,11 +193,11 @@ async def image_generate(prompt: str, style: Optional[str] = None) -> str:
         style: Style optionnel.
     """
     full_prompt = f"{prompt}, style {style}" if style else prompt
-    # Nettoyage et encodage strict du prompt pour l'URL
+    ## Nettoyage et encodage strict du prompt pour l'URL
     clean_prompt = full_prompt.replace("\n", " ").strip()
     encoded_prompt = urllib.parse.quote(clean_prompt)
     
-    # URL directe Pollinations
+    ## URL directe Pollinations
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
     logger.info("URL Image générée : %s", image_url)
     return image_url
@@ -253,9 +239,8 @@ async def publish_content(
         return f"Erreur de publication : {e}"
 
 
-# ---------------------------------------------------------------------------
-# State & structured output
-# ---------------------------------------------------------------------------
+# ======================== ETAT DU GRAPH ET STRAUCTURE DE SORTIE =====================
+
 class Route(BaseModel):
     content_type: Literal["story", "image"] = Field(
         description="Type de contenu final : 'story' ou 'image'."
@@ -275,10 +260,9 @@ class State(TypedDict):
     image_urls: Annotated[list[str], operator.add]
     publish_result: Optional[dict]
 
+# =====================PROMPTS SYSTEMES =======================
 
-# ---------------------------------------------------------------------------
-# System prompts
-# ---------------------------------------------------------------------------
+
 ROUTER_PROMPT = """Tu es un superviseur d'agents.
 
 Analyse la demande de l'utilisateur et détermine :
@@ -312,9 +296,8 @@ Utilise l'outil `publish_content` avec le texte et/ou les URLs d'images disponib
 N'appelle pas l'outil s'il n'y a rien à publier."""
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# ============================ AIDES ===========================
+
 def _last_ai_content(messages: Sequence[BaseMessage]) -> str:
     for m in reversed(messages):
         if isinstance(m, AIMessage) and m.content and not m.tool_calls:
@@ -329,10 +312,9 @@ def _extract_tool_results(messages: Sequence[BaseMessage]) -> list[str]:
         if isinstance(m, ToolMessage) and m.content
     ]
 
+# =========================== LES NOEUDS ===========================
 
-# ---------------------------------------------------------------------------
-# NODES
-# ---------------------------------------------------------------------------
+
 async def speech_to_text(state: State) -> dict:
     audio_path = state.get("audio_path")
     if not audio_path:
@@ -387,7 +369,7 @@ async def writer_agent(state: State) -> dict:
     ]
     response = await _llm_story.ainvoke(messages)
     update: dict = {"messages": [response]}
-    # Si le LLM a déjà répondu en texte (sans tool call), on le stocke
+## Si le LLM a déjà répondu en texte (sans tool call), on le stocke
     if isinstance(response, AIMessage) and response.content and not response.tool_calls:
         update["story"] = [str(response.content)]
     return update
@@ -412,7 +394,7 @@ async def publish_agent(state: State) -> dict:
     story_parts = state.get("story") or []
     image_list = state.get("image_urls") or []
 
-    # --- Récupération de secours des URLs dans l'historique des messages ---
+## Récupération de secours des URLs dans l'historique des messages 
     if not image_list:
         for m in state["messages"]:
             if isinstance(m, ToolMessage) and ("http://" in str(m.content) or "https://" in str(m.content)):
@@ -423,7 +405,7 @@ async def publish_agent(state: State) -> dict:
             if isinstance(m, ToolMessage) and m.name == "recit_writer":
                 story_parts.append(str(m.content))
 
-    # Préparation du contenu à transmettre à l'outil Zapier
+## Préparation du contenu à transmettre à l'outil Zapier
     content_hint = ""
     if story_parts:
         content_hint += f"Texte : {' '.join(story_parts)}\n"
@@ -448,9 +430,8 @@ async def publish_agent(state: State) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Graph construction
-# ---------------------------------------------------------------------------
+# ====================== CONSTRUCTION DU GRAPH =================
+
 def build_graph():
     get_llms()
 
@@ -467,12 +448,26 @@ def build_graph():
     graph.add_node("publish", publish_agent)
     graph.add_node("publish_tools", ToolNode([publish_content]))
 
-    # START → speech → router
+## START → speech → router
+    def route_from_start(state: State) -> str:
+        if state.get("audio_path"):
+            return "speech_to_text"
+        return "router"
+
+    graph.add_conditional_edges(
+        START,
+        route_from_start,
+        {
+            "speech_to_text": "speech_to_text",
+            "router": "router",
+        }
+    )
+    graph.add_edge("speech_to_text", "router")
     graph.add_edge(START, "speech_to_text")
     graph.add_edge("speech_to_text", "router")
 
     def route_after_router(state: State) -> str:
-        # Si c'est une image, on ignore la recherche web et on va directement à l'image
+        ## Si c'est une image, on ignore la recherche web et on va directement à l'image
         if state.get("content_type") == "image":
             return "image"
         if state.get("needs_research"):
@@ -485,11 +480,10 @@ def build_graph():
         {"research": "research", "writer": "writer", "image": "image"},
     )
 
-    # Research loop
+## Research loop
     def route_from_research(state: State) -> str:
         if tools_condition(state) == "tools":
             return "research_tools"
-        # plus de tool call → on stocke les résultats et on continue
         return "writer" if state.get("content_type") == "story" else "image"
 
     graph.add_conditional_edges(
@@ -503,17 +497,18 @@ def build_graph():
     )
     graph.add_edge("research_tools", "research")
 
-    # Après research_tools on reboucle sur research ; quand research
-    # n'a plus de tool_calls on va vers writer/image.
-    # On capture aussi les ToolMessage dans le state.research
+## Après research_tools on reboucle sur research ; quand research
+## n'a plus de tool_calls on va vers writer/image.
+## On capture aussi les ToolMessage dans le state.research
+
     async def capture_research(state: State) -> dict:
         results = _extract_tool_results(state["messages"])
         return {"research": results} if results else {}
 
-    # On insère un petit nœud de capture juste avant d'aller writer/image
-    # (alternative simple : le faire dans route_from_research via un side-effect
-    #  n'est pas possible, donc on laisse les ToolMessage dans messages
-    #  et writer/image les lisent via state["research"] alimenté ailleurs).
+## On insère un petit nœud de capture juste avant d'aller writer/image
+## (alternative simple : le faire dans route_from_research via un side-effect
+##  n'est pas possible, donc on laisse les ToolMessage dans messages
+##  et writer/image les lisent via state["research"] alimenté ailleurs).
 
     # Writer loop
     graph.add_conditional_edges(
@@ -543,7 +538,8 @@ def build_graph():
     return graph.compile(checkpointer=memory)
 
 
-# Labels UI
+# ====================== LABELS UI ================================
+
 NODE_LABELS = {
     "speech_to_text": ("🎙️", "Transcription audio"),
     "router": ("🧭", "Analyse de la demande"),
