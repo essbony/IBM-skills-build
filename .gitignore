@@ -1,3 +1,11 @@
 .venv/
 .env
 utils/
+UI/
+.chainlit/
+src/
+app.py
+main.ipynb
+main.py
+temp_input.wav
+__pycache__/
