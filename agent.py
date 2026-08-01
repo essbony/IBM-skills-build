@@ -216,10 +216,7 @@ async def publish_content(
     """
     import httpx
 
-    ZAPIER_WEBHOOK_URL = os.getenv(
-        "ZAPIER_WEBHOOK_URL",
-        "https://hooks.zapier.com/hooks/catch/28063276/44lxs3i/",
-    )
+    ZAPIER_WEBHOOK_URL = os.getenv("ZAPIER_WEBHOOK_URL")
     payload: dict[str, Any] = {}
     if text and text.strip():
         payload["text"] = text.strip()
