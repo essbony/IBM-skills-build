@@ -12,7 +12,7 @@ Le système repose sur un graphe d'états (StateGraph) géré par LangGraph, per
 *   **Publication** : Intégration Zapier pour la diffusion automatisée.
 
 ## Structure du Projet
-
+- `uv` : Installer uv si vous n'avez pas puis faites uv add  <nom_fichier> à chaque installation de package
 - `agent.py` : Logique métier, définition du graphe LangGraph et des outils.
 - `ui.py` : Interface utilisateur Streamlit avancée et gestion de l'état.
 - `app.py` : Point d'entrée simple pour des tests rapides.
@@ -34,7 +34,7 @@ Créez un fichier `.env` à la racine et configurez les clés API suivantes :
 - `HF_API_TOKEN`
 - `GOOGLE_API_KEY`
 - `TAVILY_API_KEY`
-- `ZAPIER_WEBHOOK_URL` (optionnel)
+- `ZAPIER_WEBHOOK_URL`
 
 ## Utilisation
 
